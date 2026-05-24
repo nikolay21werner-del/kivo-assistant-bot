@@ -8,12 +8,12 @@ import asyncio
 import json
 import logging
 import os
+import re
 import traceback
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
-import re
 
 try:
     from anthropic import Anthropic
@@ -23,9 +23,11 @@ except ImportError:
     print("⚠️  Установите: pip install anthropic")
 
 try:
-    from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
-    from telegram.ext import (Application, CommandHandler, ContextTypes,
-                              MessageHandler, filters, CallbackQueryHandler)
+    from telegram import (Bot, InlineKeyboardButton, InlineKeyboardMarkup,
+                          Update)
+    from telegram.ext import (Application, CallbackQueryHandler,
+                              CommandHandler, ContextTypes, MessageHandler,
+                              filters)
     TELEGRAM_AVAILABLE = True
 except ImportError:
     TELEGRAM_AVAILABLE = False
@@ -51,7 +53,9 @@ ANTHROPIC_API_KEY = os.getenv(
     ""
 )
 
-ADMIN_IDS = [int(aid.strip()) for aid in os.getenv("ADMIN_IDS", "").split(",") if aid.strip()]
+ADMIN_IDS = [int(aid.strip()) for aid in os.getenv(
+    "ADMIN_IDS", "").split(",") if aid.strip()]
+
 
 class IntentType(Enum):
     GENERAL = "general"
@@ -63,6 +67,7 @@ class IntentType(Enum):
     DELIVERY = "delivery"
     COMPLAINT = "complaint"
 
+
 class OrderStatus(Enum):
     PENDING = "pending"
     CONFIRMED = "confirmed"
@@ -71,6 +76,7 @@ class OrderStatus(Enum):
     DELIVERED = "delivered"
     CANCELLED = "cancelled"
 
+
 class TicketStatus(Enum):
     OPEN = "open"
     IN_PROGRESS = "in_progress"
@@ -78,11 +84,13 @@ class TicketStatus(Enum):
     RESOLVED = "resolved"
     CLOSED = "closed"
 
+
 class TicketPriority(Enum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
+
 
 @dataclass
 class Order:
@@ -109,6 +117,7 @@ class Order:
     def update_status(self, new_status: OrderStatus):
         self.status = new_status
         self.updated_at = datetime.now().isoformat()
+
 
 @dataclass
 class SupportTicket:
@@ -146,6 +155,7 @@ class SupportTicket:
         self.status = new_status
         self.updated_at = datetime.now().isoformat()
 
+
 @dataclass
 class UserProfile:
     user_id: int
@@ -168,6 +178,7 @@ class UserProfile:
 
     def to_dict(self):
         return asdict(self)
+
 
 class ProfessionalAIAgent:
     INTENT_KEYWORDS = {
@@ -300,9 +311,12 @@ class ProfessionalAIAgent:
 
     def _log_status(self):
         logger.info(f"🔧 System Status:")
-        logger.info(f"   Claude API: {'✅ Ready' if self.client else '❌ Not available'}")
-        logger.info(f"   Telegram Bot: {'✅ Ready' if self.bot else '❌ Not available'}")
-        logger.info(f"   Admin IDs: {self.admin_ids if self.admin_ids else 'None'}")
+        logger.info(
+            f"   Claude API: {'✅ Ready' if self.client else '❌ Not available'}")
+        logger.info(
+            f"   Telegram Bot: {'✅ Ready' if self.bot else '❌ Not available'}")
+        logger.info(
+            f"   Admin IDs: {self.admin_ids if self.admin_ids else 'None'}")
 
     def detect_intent(self, message: str) -> IntentType:
         message_lower = message.lower()
@@ -312,7 +326,8 @@ class ProfessionalAIAgent:
         return IntentType.GENERAL
 
     def get_system_prompt(self, intent: IntentType) -> str:
-        return self.SYSTEM_PROMPTS.get(intent, self.SYSTEM_PROMPTS[IntentType.GENERAL])
+        return self.SYSTEM_PROMPTS.get(
+            intent, self.SYSTEM_PROMPTS[IntentType.GENERAL])
 
     async def process_message(self, user_id: int, message: str) -> str:
         try:
@@ -332,7 +347,8 @@ class ProfessionalAIAgent:
 
             if not self.client:
                 response_text = self._get_fallback_response(intent)
-                logger.warning("⚠️  Using fallback response (Claude API not available)")
+                logger.warning(
+                    "⚠️  Using fallback response (Claude API not available)")
             else:
                 response = self.client.messages.create(
                     model="claude-3-5-sonnet-20241022",
@@ -344,9 +360,11 @@ class ProfessionalAIAgent:
 
             if user_id not in self.conversations:
                 self.conversations[user_id] = []
-            
-            self.conversations[user_id].append({"role": "user", "content": message})
-            self.conversations[user_id].append({"role": "assistant", "content": response_text})
+
+            self.conversations[user_id].append(
+                {"role": "user", "content": message})
+            self.conversations[user_id].append(
+                {"role": "assistant", "content": response_text})
             self.conversations[user_id] = self.conversations[user_id][-20:]
 
             if intent == IntentType.ORDER:
@@ -390,7 +408,8 @@ class ProfessionalAIAgent:
         except Exception as e:
             logger.error(f"❌ Error creating order: {e}")
 
-    async def _create_support_ticket(self, user_id: int, issue: str, intent: IntentType):
+    async def _create_support_ticket(
+        self, user_id: int, issue: str, intent: IntentType):
         try:
             ticket_id = f"TKT-{user_id}-{int(datetime.now().timestamp())}"
             priority = TicketPriority.HIGH if intent == IntentType.COMPLAINT else TicketPriority.MEDIUM
@@ -404,7 +423,8 @@ class ProfessionalAIAgent:
             ticket.add_message("user", issue)
             self.tickets[ticket_id] = ticket
             self.stats["total_tickets"] += 1
-            logger.info(f"✅ Support ticket created: {ticket_id} (Priority: {priority.value})")
+            logger.info(
+                f"✅ Support ticket created: {ticket_id} (Priority: {priority.value})")
         except Exception as e:
             logger.error(f"❌ Error creating support ticket: {e}")
 
@@ -430,13 +450,15 @@ class ProfessionalAIAgent:
             "tickets_data": {k: v.to_dict() for k, v in list(self.tickets.items())[-5:]},
         }
 
+
 agent = None
+
 
 async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         user_id = update.message.from_user.id
         first_name = update.message.from_user.first_name or "Guest"
-        
+
         welcome_message = f"""🤖 Добро пожаловать, {first_name}!
 
 Я профессиональный AI ассистент вашей компании.
@@ -452,11 +474,12 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 /help - Подробнее о командах
 /status - Статус вашего аккаунта"""
-        
+
         await update.message.reply_text(welcome_message)
         logger.info(f"✅ User {user_id} started bot")
     except Exception as e:
         logger.error(f"❌ Error in start_handler: {e}")
+
 
 async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
