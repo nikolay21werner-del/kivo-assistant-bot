@@ -1,32 +1,53 @@
-name: Code Review
+name: Perfect Code Review & Auto-Fix
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop ]
+  schedule:
+    - cron: '0 0 * * *'
 
 jobs:
-  lint:
+  code-quality:
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-      
-      - name: Install linters
+
+      - name: Install tools
         run: |
-          python -m pip install flake8 pylint black
-      
-      - name: Check syntax
-        run: python -m py_compile *.py || true
-      
-      - name: Run flake8
-        run: flake8 *.py --max-line-length=120 || true
-      
-      - name: Run pylint
+          pip install flake8 pylint black isort autopep8
+
+      - name: Format with Black
+        run: black *.py --line-length=100 || true
+
+      - name: Sort imports
+        run: isort *.py || true
+
+      - name: Auto-fix with AutoPEP8
+        run: |
+          for file in *.py; do
+            autopep8 --in-place --aggressive "$file"
+          done
+
+      - name: Commit changes
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add -A
+          git commit -m "🤖 Auto-fix: Black, isort, AutoPEP8" || true
+          git push || true
+
+      - name: Run Flake8
+        run: flake8 *.py --max-line-length=100 || true
+
+      - name: Run Pylint
         run: pylint *.py --disable=all --enable=E,F || true
