@@ -1,2 +1,2 @@
-anthropic==0.28.1
+groq==0.4.2
 python-telegram-bot==20.7
