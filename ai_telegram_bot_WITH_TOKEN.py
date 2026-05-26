@@ -21,7 +21,7 @@ except ImportError:
 try:
     from telegram import Bot, Update, LabeledPrice, InlineKeyboardButton, InlineKeyboardMarkup
     from telegram.ext import (Application, CommandHandler, ContextTypes,
-                              MessageHandler, filters, PreCheckoutQueryHandler, SuccessfulPaymentHandler)
+                              MessageHandler, filters, PreCheckoutQueryHandler, SuccessfulPaymentHandler, CallbackQueryHandler)
     from telegram.constants import ParseMode
 except ImportError:
     print("❌ python-telegram-bot not installed. Run: pip install python-telegram-bot")
@@ -444,7 +444,7 @@ async def main():
     app.add_handler(CommandHandler("clear", clear_chat))
     
     # Callback handler for buttons
-    app.add_handler(update.CallbackQueryHandler(button_callback))
+    app.add_handler(CallbackQueryHandler(button_callback))
     
     # Message handler
     app.add_handler(
