@@ -5,10 +5,10 @@ Monthly subscription with Telegram Stars
 """
 
 import asyncio
+import json
 import logging
 import os
 import sys
-import json
 from datetime import datetime, timedelta
 from typing import Dict, List
 
@@ -19,10 +19,13 @@ except ImportError:
     sys.exit(1)
 
 try:
-    from telegram import Bot, Update, LabeledPrice, InlineKeyboardButton, InlineKeyboardMarkup
-    from telegram.ext import (Application, CommandHandler, ContextTypes,
-                              MessageHandler, filters, PreCheckoutQueryHandler, SuccessfulPaymentHandler, CallbackQueryHandler)
+    from telegram import (Bot, InlineKeyboardButton, InlineKeyboardMarkup,
+                          LabeledPrice, Update)
     from telegram.constants import ParseMode
+    from telegram.ext import (Application, CallbackQueryHandler,
+                              CommandHandler, ContextTypes, MessageHandler,
+                              PreCheckoutQueryHandler,
+                              SuccessfulPaymentHandler, filters)
 except ImportError:
     print("❌ python-telegram-bot not installed. Run: pip install python-telegram-bot")
     sys.exit(1)
@@ -60,7 +63,8 @@ class GroqAIAgent:
                 with open("subscriptions.json", "r") as f:
                     self.subscriptions = json.load(f)
                     # Convert string keys to int
-                    self.subscriptions = {int(k): v for k, v in self.subscriptions.items()}
+                    self.subscriptions = {
+                        int(k): v for k, v in self.subscriptions.items()}
         except Exception as e:
             logger.error(f"Error loading subscriptions: {e}")
 
@@ -88,15 +92,15 @@ class GroqAIAgent:
         """Check if user has active subscription"""
         if user_id not in self.subscriptions:
             return False
-        
+
         sub_data = self.subscriptions[user_id]
         expires_at = datetime.fromisoformat(sub_data["expires_at"])
-        
+
         if datetime.now() > expires_at:
             del self.subscriptions[user_id]
             self._save_subscriptions()
             return False
-        
+
         return True
 
     def add_subscription(self, user_id: int, days: int = SUBSCRIPTION_DAYS):
@@ -105,7 +109,7 @@ class GroqAIAgent:
         self.subscriptions[user_id] = {
             "purchased_at": datetime.now().isoformat(),
             "expires_at": expires_at,
-            "price_stars": SUBSCRIPTION_PRICE_STARS
+            "price_stars": SUBSCRIPTION_PRICE_STARS,
         }
         self._save_subscriptions()
         logger.info(f"✅ User {user_id} subscribed until {expires_at}")
@@ -114,11 +118,11 @@ class GroqAIAgent:
         """Get subscription info for user"""
         if user_id not in self.subscriptions:
             return "❌ Нет активной подписки"
-        
+
         sub_data = self.subscriptions[user_id]
         expires_at = datetime.fromisoformat(sub_data["expires_at"])
         days_left = (expires_at - datetime.now()).days
-        
+
         return f"""✅ **Активная подписка:**
 ⭐ Цена: {sub_data['price_stars']} звезд/месяц
 📅 Осталось дней: {days_left}
@@ -269,12 +273,12 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def buy_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle subscription purchase"""
     user_id = update.message.from_user.id
-    
+
     if agent.is_subscribed(user_id):
         sub_info = agent.get_subscription_info(user_id)
         await update.message.reply_text(
             f"✅ **У тебя уже есть активная подписка!**\n\n{sub_info}",
-            parse_mode=ParseMode.MARKDOWN
+            parse_mode=ParseMode.MARKDOWN,
         )
         return
 
@@ -300,7 +304,8 @@ async def buy_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"💰 Invoice sent to user {user_id}")
 
 
-async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def precheckout_callback(
+        update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Answer pre-checkout query"""
     query = update.pre_checkout_query
     if query.invoice_payload == "subscription_monthly":
@@ -311,16 +316,19 @@ async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         logger.error(f"❌ Pre-checkout failed for user {query.from_user.id}")
 
 
-async def successful_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def successful_payment_callback(
+        update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle successful payment"""
     user_id = update.message.from_user.id
     payment = update.message.successful_payment
-    
-    logger.info(f"✅ Payment successful! User {user_id}, Amount: {payment.total_amount} (Telegram Stars)")
-    
+
+    logger.info(
+        f"✅ Payment successful! User {user_id}, Amount: {payment.total_amount} (Telegram Stars)"
+    )
+
     # Add subscription
     agent.add_subscription(user_id, SUBSCRIPTION_DAYS)
-    
+
     # Send confirmation
     await update.message.reply_text(
         f"""✅ **Спасибо за покупку!**
@@ -332,25 +340,22 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
 Теперь ты можешь использовать бота без ограничений!
 
 Просто пиши мне! 💬""",
-        parse_mode=ParseMode.MARKDOWN
+        parse_mode=ParseMode.MARKDOWN,
     )
 
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     stats = agent.get_stats(user_id)
-    
+
     keyboard = []
     if not agent.is_subscribed(user_id):
-        keyboard = [[InlineKeyboardButton("⭐ Купить подписку", callback_data="buy")]]
-    
+        keyboard = [[InlineKeyboardButton(
+            "⭐ Купить подписку", callback_data="buy")]]
+
     reply_markup = InlineKeyboardMarkup(keyboard) if keyboard else None
-    
-    await update.message.reply_text(
-        stats,
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=reply_markup
-    )
+
+    await update.message.reply_text(stats, parse_mode=ParseMode.MARKDOWN, reply_markup=reply_markup)
 
 
 async def clear_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -359,8 +364,7 @@ async def clear_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         agent.conversations[user_id] = []
 
     await update.message.reply_text(
-        "✅ **История очищена!**\n\nЧто-нибудь новое? 😊", 
-        parse_mode=ParseMode.MARKDOWN
+        "✅ **История очищена!**\n\nЧто-нибудь новое? 😊", parse_mode=ParseMode.MARKDOWN
     )
 
 
@@ -370,9 +374,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Check subscription
     if not agent.is_subscribed(user_id):
-        keyboard = [[InlineKeyboardButton("⭐ Купить подписку", callback_data="buy")]]
+        keyboard = [[InlineKeyboardButton(
+            "⭐ Купить подписку", callback_data="buy")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        
+
         await update.message.reply_text(
             f"""❌ **Подписка не активна!**
 
@@ -385,7 +390,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 Нажми кнопку ниже! 👇""",
             parse_mode=ParseMode.MARKDOWN,
-            reply_markup=reply_markup
+            reply_markup=reply_markup,
         )
         return
 
@@ -396,7 +401,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if len(response) > 4096:
             for i in range(0, len(response), 4096):
-                await update.message.reply_text(response[i: i + 4096], parse_mode=ParseMode.MARKDOWN)
+                await update.message.reply_text(
+                    response[i: i + 4096], parse_mode=ParseMode.MARKDOWN
+                )
         else:
             await update.message.reply_text(response, parse_mode=ParseMode.MARKDOWN)
 
@@ -409,7 +416,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle button clicks"""
     query = update.callback_query
     await query.answer()
-    
+
     if query.data == "buy":
         # Trigger buy_subscription by creating a fake message
         update.message = query.message
@@ -442,10 +449,10 @@ async def main():
     app.add_handler(CommandHandler("help", help_cmd))
     app.add_handler(CommandHandler("status", status))
     app.add_handler(CommandHandler("clear", clear_chat))
-    
+
     # Callback handler for buttons
     app.add_handler(CallbackQueryHandler(button_callback))
-    
+
     # Message handler
     app.add_handler(
         MessageHandler(
@@ -455,7 +462,8 @@ async def main():
     logger.info("=" * 50)
     logger.info("🚀 TELEGRAM BOT WITH GROQ API + STARS PAYMENT")
     logger.info("=" * 50)
-    logger.info(f"💰 Subscription: {SUBSCRIPTION_PRICE_STARS} stars per {SUBSCRIPTION_DAYS} days")
+    logger.info(
+        f"💰 Subscription: {SUBSCRIPTION_PRICE_STARS} stars per {SUBSCRIPTION_DAYS} days")
     logger.info("✅ Groq API: Ready")
     logger.info("✅ Telegram: Ready")
     logger.info("✅ Polling: Active")
